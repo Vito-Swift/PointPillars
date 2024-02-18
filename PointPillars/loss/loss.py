@@ -58,6 +58,8 @@ class Loss(nn.Module):
         cls_loss = cls_loss.sum() / num_cls_pos
 
         # 2. regression loss
+        # print(f'bbox_pred_size: {bbox_pred.size()}')
+        # print(f'bbox_reg_size: {batched_bbox_reg.size()}')
         reg_loss = self.smooth_l1_loss(bbox_pred, batched_bbox_reg)
         reg_loss = reg_loss.sum() / reg_loss.size(0)
 

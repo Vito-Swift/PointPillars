@@ -252,7 +252,7 @@ class PointPillars(nn.Module):
         #           [0, -39.68, -0.6, 69.12, 39.68, -0.6],
         #           [0, -39.68, -1.78, 69.12, 39.68, -1.78]]
         # sizes = [[0.6, 0.8, 1.73], [0.6, 1.76, 1.73], [1.6, 3.9, 1.56]]
-        ranges = [[0, -30, -1.6, 40, 30, -1.6]]
+        ranges = [[0, -30, -1.3, 40, 30, -1.3]]
         sizes = [[4.7, 1.8, 1.8]]
         rotations = [0, 1.57]
 
@@ -407,6 +407,7 @@ class PointPillars(nn.Module):
         # anchors
         device = bbox_cls_pred.device
         feature_map_size = torch.tensor(list(bbox_cls_pred.size()[-2:]), device=device)
+
         anchors = self.anchors_generator.get_multi_anchors(feature_map_size)
         batched_anchors = [anchors for _ in range(batch_size)]
 
