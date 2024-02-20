@@ -15,7 +15,6 @@ def collate_fn(list_data):
         gt_labels, gt_names = data_dict['gt_labels'], data_dict['gt_names']
         difficulty = data_dict['difficulty']
         image_info, calbi_info = data_dict['image_info'], data_dict['calib_info']
-
         batched_pts_list.append(torch.from_numpy(pts))
         batched_gt_bboxes_list.append(torch.from_numpy(gt_bboxes_3d))
         batched_labels_list.append(torch.from_numpy(gt_labels))

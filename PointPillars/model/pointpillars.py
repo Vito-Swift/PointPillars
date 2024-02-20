@@ -222,6 +222,87 @@ class Head(nn.Module):
         return bbox_cls_pred, bbox_pred, bbox_dir_cls_pred
 
 
+class HeadSingleClass(nn.Module):
+    def __init__(self, in_channel):
+        super().__init__()
+        self.conv_reg = nn.Conv2d(in_channel, 7, 1)
+        self.conv_dir = nn.Conv2d(in_channel, 2, 1)
+
+        # in consistent with mmdet3d
+        conv_layer_id = 0
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight, mean=0, std=0.01)
+                if conv_layer_id == 0:
+                    prior_prob = 0.01
+                    bias_init = float(-np.log((1 - prior_prob) / prior_prob))
+                    nn.init.constant_(m.bias, bias_init)
+                else:
+                    nn.init.constant_(m.bias, 0)
+                conv_layer_id += 1
+
+    def forward(self, x):
+        bbox_pred = self.conv_reg(x)
+        bbox_dir_pred = self.conv_dir(x)
+        return bbox_pred, bbox_dir_pred
+
+
+class PointPillarsSingleClass(nn.Module):
+    def __init__(self,
+                 voxel_size=[0.16, 0.16, 4],
+                 point_cloud_range=[0, -39.68, -3, 69.12, 39.68, 1],
+                 max_num_points=32,
+                 max_voxels=(16000, 40000)):
+        super().__init__()
+        self.pillar_layer = PillarLayer(voxel_size=voxel_size,
+                                        point_cloud_range=point_cloud_range,
+                                        max_num_points=max_num_points,
+                                        max_voxels=max_voxels)
+        self.pillar_encoder = PillarEncoder(voxel_size=voxel_size,
+                                            point_cloud_range=point_cloud_range,
+                                            in_channel=9,
+                                            out_channel=64)
+        self.backbone = Backbone(in_channel=64,
+                                 out_channels=[64, 128, 256],
+                                 layer_nums=[3, 5, 5])
+        self.neck = Neck(in_channels=[64, 128, 256],
+                         upsample_strides=[1, 2, 4],
+                         out_channels=[128, 128, 128])
+        self.head = HeadSingleClass(in_channel=384)
+
+        # anchor
+        ranges = [[0, -30, -1.3, 40, 30, -1.3]]
+        sizes = [[4.7, 2.1, 1.6]]
+        rotations = [0, 1.57]
+
+        self.anchors_generator = Anchors(ranges=ranges,
+                                         sizes=sizes,
+                                         rotations=rotations)
+        self.nms_pre = 100
+        self.nms_thr = 0.01
+        self.score_thr = 0.1
+        self.max_num = 50
+
+    def forward(self, batched_pts, mode='test', batched_gt_bboxes=None, batched_gt_labels=None):
+        batch_size = len(batched_pts)
+
+        # forward network
+        pillars, coors_batch, npoints_per_pillar = self.pillar_layer(batched_pts)
+        pillar_features = self.pillar_encoder(pillars, coors_batch, npoints_per_pillar)
+        xs = self.backbone(pillar_features)
+        x = self.neck(xs)
+        bbox_pred, bbox_dir_pred = self.head(x)
+
+        # anchors
+        device = bbox_pred.device
+        feature_map_size = torch.tensor(list(bbox_pred.size()[-2:]), device=device)
+        anchors = self.anchors_generator.get_multi_anchors(feature_map_size)
+        batched_anchors = [anchors for _ in range(batch_size)]
+
+        if mode == 'train':
+            pass
+
+
 class PointPillars(nn.Module):
     def __init__(self,
                  nclasses=3,
@@ -253,7 +334,7 @@ class PointPillars(nn.Module):
         #           [0, -39.68, -1.78, 69.12, 39.68, -1.78]]
         # sizes = [[0.6, 0.8, 1.73], [0.6, 1.76, 1.73], [1.6, 3.9, 1.56]]
         ranges = [[0, -30, -1.3, 40, 30, -1.3]]
-        sizes = [[4.7, 1.8, 1.8]]
+        sizes = [[4.7, 2.1, 1.6]]
         rotations = [0, 1.57]
 
         self.anchors_generator = Anchors(ranges=ranges,
