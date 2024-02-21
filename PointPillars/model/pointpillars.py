@@ -3,7 +3,7 @@ import pdb
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from PointPillars.model.anchors import Anchors, anchor_target, anchors2bboxes
+from PointPillars.model.anchors import Anchors, anchor_target, anchors2bboxes, anchor_target_single_class
 from PointPillars.ops import Voxelization, nms_cuda
 from PointPillars.utils import limit_period
 
@@ -282,6 +282,9 @@ class PointPillarsSingleClass(nn.Module):
         self.nms_thr = 0.01
         self.score_thr = 0.1
         self.max_num = 50
+        self.assigners = [
+            {'pos_iou_thr': 0.6, 'neg_iou_thr': 0.45, 'min_iou_thr': 0.35},
+        ]
 
     def forward(self, batched_pts, mode='test', batched_gt_bboxes=None, batched_gt_labels=None):
         batch_size = len(batched_pts)
@@ -300,7 +303,10 @@ class PointPillarsSingleClass(nn.Module):
         batched_anchors = [anchors for _ in range(batch_size)]
 
         if mode == 'train':
-            pass
+            anchor_target_dict = anchor_target_single_class(batched_anchors=batched_anchors,
+                                                            batched_gt_bboxes=batched_gt_bboxes,
+                                                            batched_gt_labels=batched_gt_labels,
+                                                            assigners=self.assigners)
 
 
 class PointPillars(nn.Module):
